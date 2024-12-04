@@ -28,16 +28,23 @@
 	border-radius:9px;
 	border:1px solid blue;
 }
-QCheckBox::hover
+QCheckBox::hover::unchecked
 {
 	border-radius:9px;
 	border:1px solid black;
 	background:red;
 	color:white;
 }
-QCheckBox::disable
+QCheckBox::checked
 {
-	color:rgba(130, 130, 130, 150);
+	border-radius:9px;
+	border:1px solid black;
+	background:rgb(0, 255, 0);
+	color:white;
+}
+QCheckBox::disabled
+{
+	color:rgba(180, 180, 180, 220);
 	background:rgba(110, 110, 110, 150);
 }
 QPushButton
@@ -52,11 +59,19 @@ QPushButton::hover
 	background:red;
 	color:white;
 }
+QPushButton:pressed
+{
+	border-radius:9px;
+	border:1px solid black;
+	background:gray;
+	color:white;
+}
 QLabel
 {
 	border-radius:9px;
 	border:1px solid white;
-	background:rgba(255, 255, 0, 150);
+	
+	color:qconicalgradient(cx:0, cy:0, angle:135, stop:0 rgba(255, 255, 0, 69), stop:0.375 rgba(255, 255, 0, 69), stop:0.423533 rgba(251, 255, 0, 145), stop:0.45 rgba(247, 255, 0, 208), stop:0.477581 rgba(255, 244, 71, 130), stop:0.518717 rgba(255, 218, 71, 130), stop:0.55 rgba(255, 255, 0, 255), stop:0.57754 rgba(255, 203, 0, 130), stop:0.625 rgba(255, 255, 0, 69), stop:1 rgba(255, 255, 0, 69));
 }</string>
   </property>
   <widget class="QWidget" name="centralwidget">
@@ -627,6 +642,9 @@ QLabel
             <property name="text">
              <string>只抽女生</string>
             </property>
+            <property name="checked">
+             <bool>false</bool>
+            </property>
            </widget>
           </item>
           <item>
@@ -639,6 +657,12 @@ QLabel
             </property>
             <property name="text">
              <string>只抽男生</string>
+            </property>
+            <property name="checked">
+             <bool>false</bool>
+            </property>
+            <property name="tristate">
+             <bool>false</bool>
             </property>
            </widget>
           </item>
@@ -752,6 +776,9 @@ QLabel
             </property>
             <property name="text">
              <string>开发中...</string>
+            </property>
+            <property name="checked">
+             <bool>false</bool>
             </property>
            </widget>
           </item>
