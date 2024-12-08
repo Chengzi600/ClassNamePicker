@@ -8,9 +8,9 @@ import webbrowser
 import pyttsx3
 
 from ui import Ui_MainWindow
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import QTimer, Qt, QPoint, QRect
-from PyQt5.QtGui import QGuiApplication, QPainter, QBrush, QColor, QFont
+from PySide2.QtWidgets import *
+from PySide2.QtCore import QTimer, Qt, QPoint, QRect
+from PySide2.QtGui import QGuiApplication, QPainter, QBrush, QColor, QFont
 
 
 class PickName(QMainWindow, Ui_MainWindow):
@@ -20,7 +20,8 @@ class PickName(QMainWindow, Ui_MainWindow):
         self.version_time = '2024.11.30'
         self.version_info = ''
         self.config_version = '1.1.4'
-
+        # 获取屏幕大小
+        self.screen_rect = QApplication.primaryScreen().geometry()
         # 初始名单
         self.names = []
         self.g_names = []
@@ -57,7 +58,7 @@ class PickName(QMainWindow, Ui_MainWindow):
         self.setWindowTitle(
             "课堂随机点名{}- ClassNamePicker - v{}({})".format(self.version_info, self.version, self.version_time))
         # 禁止调整窗口大小
-        self.setFixedSize(self.size())  # 使窗口大小固定
+        self.setFixedSize(int(0.4*float(self.screen_rect.width())), 0.8*self.screen_rect.height())  # 使窗口大小固定
         # 禁用最大化按钮
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowMaximizeButtonHint)
         # 禁用最小化按钮
@@ -255,18 +256,16 @@ class PickName(QMainWindow, Ui_MainWindow):
     def set_pick_group_g(self):
         self.block_signals(True)
         if not self.pick_only_g:
-            if QMessageBox.question(self, "继续吗",
-                                    "该操作将清空已抽取的名字，继续吗？\n 这次将无法再使用重复抽取功能，如有需要请重启",
-                                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes:
+            if QMessageBox.question(self, "继续吗","该操作将清空已抽取的名字，继续吗？\n 这次将无法再使用重复抽取功能，如有需要请重启",QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes:
                 self.pick_again = False
-                self.pick_again_checkbox.setCheckState(False)
+                self.pick_again_checkbox.setCheckState(Qt.CheckState.Unchecked)
                 self.pick_again_checkbox.setDisabled(True)
                 self.pick_only_g = True
                 self.set_pick_group('g')
                 self.can_pick_names = self.g_names.copy()
                 self.update_stats()
             else:
-                self.g_names_pick_checkbox.setCheckState(False)
+                self.g_names_pick_checkbox.setCheckState(Qt.CheckState.Unchecked)
         else:
             self.set_pick_group('clear')
         self.block_signals(False)
@@ -274,11 +273,9 @@ class PickName(QMainWindow, Ui_MainWindow):
     def set_pick_group_b(self):
         self.block_signals()
         if not self.pick_only_b:
-            if QMessageBox.question(self, "继续吗",
-                                    "该操作将清空已抽取的名字，继续吗？\n 这次将无法再使用重复抽取功能，如有需要请重启",
-                                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes:
+            if QMessageBox.question(self, "继续吗","该操作将清空已抽取的名字，继续吗？\n 这次将无法再使用重复抽取功能，如有需要请重启",QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes:
                 self.pick_again = False
-                self.pick_again_checkbox.setCheckState(False)
+                self.pick_again_checkbox.setCheckState(Qt.CheckState.Unchecked)
                 self.pick_again_checkbox.setDisabled(True)
                 self.pick_only_b = True
                 self.set_pick_group('b')
@@ -286,7 +283,8 @@ class PickName(QMainWindow, Ui_MainWindow):
                 self.update_stats()
 
             else:
-                self.b_names_pick_checkbox.setCheckState(False)
+                self.b_names_pick_checkbox.setCheckState(Qt.CheckState.Unchecked)
+                self.pick_again_checkbox.setDisabled(False)
         else:
             self.set_pick_group('clear')
         self.block_signals(False)
@@ -296,16 +294,17 @@ class PickName(QMainWindow, Ui_MainWindow):
         if self.pick_only_b and self.pick_only_g:
             if ab == 'g':
                 self.pick_only_b = False
-                self.b_names_pick_checkbox.setCheckState(False)
+                self.b_names_pick_checkbox.setCheckState(Qt.CheckState.Unchecked)
             elif ab == 'b':
                 self.pick_only_g = False
-                self.g_names_pick_checkbox.setCheckState(False)
+                self.g_names_pick_checkbox.setCheckState(Qt.CheckState.Unchecked)
         elif ab == 'clear':
             self.pick_only_g = False
-            self.g_names_pick_checkbox.setCheckState(False)
+            self.g_names_pick_checkbox.setCheckState(Qt.CheckState.Unchecked)
             self.pick_only_b = False
-            self.b_names_pick_checkbox.setCheckState(False)
+            self.b_names_pick_checkbox.setCheckState(Qt.CheckState.Unchecked)
             self.can_pick_names = self.names.copy()
+            self.pick_again_checkbox.setDisabled(False)
             self.update_stats()
 
     def pick_name(self):
@@ -348,14 +347,13 @@ class PickName(QMainWindow, Ui_MainWindow):
     def perform_countdown(self, seconds):
         self.pick_name_button.setDisabled(True)
         self.reset_button.setDisabled(True)
-        self.timer_label.setStyleSheet("color=red")
         self.timer_label.setText(f"{seconds:.1f}s")
         if seconds > 0:
             QTimer.singleShot(100, lambda: self.perform_countdown(seconds - 0.1))
         else:
             self.pick_name_button.setDisabled(False)
             self.reset_button.setDisabled(False)
-            self.timer_label.setStyleSheet("color: black")
+            self.timer_label.setStyleSheet("border-radius:9px;\nborder:1px solid white;\ncolor:qconicalgradient(cx:0, cy:0, angle:135, stop:0 rgba(255, 255, 0, 69), stop:0.375 rgba(255, 255, 0, 69), stop:0.423533 rgba(251, 255, 0, 145), stop:0.45 rgba(247, 255, 0, 208), stop:0.477581 rgba(255, 244, 71, 130), stop:0.518717 rgba(255, 218, 71, 130), stop:0.55 rgba(255, 255, 0, 255), stop:0.57754 rgba(255, 203, 0, 130), stop:0.625 rgba(255, 255, 0, 69), stop:1 rgba(255, 255, 0, 69));")
             self.is_running = True
             self.start_time = time.time()
             self.update_timer()
@@ -377,7 +375,7 @@ class PickName(QMainWindow, Ui_MainWindow):
             self.set_pick_group('clear')
             self.can_pick_names = self.names.copy()
             self.name_label.setText("请抽取")
-            self.name_label.setStyleSheet("color: black")
+            self.name_label.setStyleSheet("border-radius:9px;\nborder:1px solid white;\ncolor:qconicalgradient(cx:0, cy:0, angle:135, stop:0 rgba(255, 255, 0, 69), stop:0.375 rgba(255, 255, 0, 69), stop:0.423533 rgba(251, 255, 0, 145), stop:0.45 rgba(247, 255, 0, 208), stop:0.477581 rgba(255, 244, 71, 130), stop:0.518717 rgba(255, 218, 71, 130), stop:0.55 rgba(255, 255, 0, 255), stop:0.57754 rgba(255, 203, 0, 130), stop:0.625 rgba(255, 255, 0, 69), stop:1 rgba(255, 255, 0, 69));")
             self.pick_name_button.setDisabled(False)
             self.save_config()
             self.update_stats()
@@ -385,8 +383,7 @@ class PickName(QMainWindow, Ui_MainWindow):
         if no_tip:
             perform_reset()
         else:
-            reply = QMessageBox.question(self, '提示', '你确定要重置已抽取名单吗?',
-                                         QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            reply = QMessageBox.question(self, '提示', '你确定要重置已抽取名单吗?',QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
             if reply == QMessageBox.Yes:
                 perform_reset()
                 QMessageBox.information(self, "提示", "已清空已抽取名单!")
