@@ -16,9 +16,9 @@ from PyQt5.QtGui import QGuiApplication, QPainter, QBrush, QColor, QFont
 class PickName(QMainWindow, Ui_MainWindow):
     def __init__(self):
         # 版本信息
-        self.version = '1.4.3'
-        self.version_time = '2024.11.30'
-        self.version_info = '1'
+        self.version = '1.4.4'
+        self.version_time = '2025.2.3'
+        self.version_info = ''
         self.config_version = '1.1.4'
 
         # 初始名单
@@ -57,7 +57,7 @@ class PickName(QMainWindow, Ui_MainWindow):
         self.setWindowTitle(
             "课堂随机点名{}- ClassNamePicker - v{}({})".format(self.version_info, self.version, self.version_time))
         # 禁止调整窗口大小
-        self.setFixedSize(self.size())  # 使窗口大小固定
+        # self.setFixedSize(self.size())  # 使窗口大小固定
         # 禁用最大化按钮
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowMaximizeButtonHint)
         # 禁用最小化按钮
@@ -218,8 +218,12 @@ class PickName(QMainWindow, Ui_MainWindow):
     def set_pick_again(self):
         if not self.pick_again:
             self.pick_again = True
-            self.can_pick_names = self.names.copy()
-            QMessageBox.information(self, '提示', '切换成功,已清空已抽取名单')
+            if self.pick_only_g:
+                self.can_pick_names = self.g_names.copy()
+            elif self.pick_only_b:
+                self.can_pick_names = self.b_names.copy()
+            else:
+                self.can_pick_names = self.names.copy()
         elif self.pick_again:
             self.pick_again = False
         self.update_stats()
@@ -256,11 +260,11 @@ class PickName(QMainWindow, Ui_MainWindow):
         self.block_signals(True)
         if not self.pick_only_g:
             if QMessageBox.question(self, "继续吗",
-                                    "该操作将清空已抽取的名字，继续吗？\n 这次将无法再使用重复抽取功能，如有需要请重启",
+                                    "该操作将清空已抽取的名字",
                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes:
                 self.pick_again = False
                 self.pick_again_checkbox.setCheckState(False)
-                self.pick_again_checkbox.setDisabled(True)
+                # self.pick_again_checkbox.setDisabled(True)
                 self.pick_only_g = True
                 self.set_pick_group('g')
                 self.can_pick_names = self.g_names.copy()
@@ -275,11 +279,11 @@ class PickName(QMainWindow, Ui_MainWindow):
         self.block_signals()
         if not self.pick_only_b:
             if QMessageBox.question(self, "继续吗",
-                                    "该操作将清空已抽取的名字，继续吗？\n 这次将无法再使用重复抽取功能，如有需要请重启",
+                                    "该操作将清空已抽取的名字",
                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes:
                 self.pick_again = False
                 self.pick_again_checkbox.setCheckState(False)
-                self.pick_again_checkbox.setDisabled(True)
+                # self.pick_again_checkbox.setDisabled(True)
                 self.pick_only_b = True
                 self.set_pick_group('b')
                 self.can_pick_names = self.b_names.copy()
@@ -316,7 +320,7 @@ class PickName(QMainWindow, Ui_MainWindow):
         self.reset_button.setDisabled(True)
 
         if not self.can_pick_names:
-            QMessageBox.information(self, "提示", "所有名字已抽取完毕，请重置名单")
+            QMessageBox.information(self, "提示", "所有名字已抽取完毕，请重置")
             self.name_label.setText("请重置")
             self.name_label.setStyleSheet("color: red")
             self.reset_button.setDisabled(False)
@@ -517,7 +521,7 @@ class RoundFloatingWindow(QWidget):
         super().__init__(parent)
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
         self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setFixedSize(80, 80)  # 悬浮窗大小
+        self.setFixedSize(140, 140)  # 悬浮窗大小
 
         # 用于记录鼠标位置
         self.old_pos = QPoint()
@@ -612,9 +616,9 @@ class RoundFloatingWindow(QWidget):
 
 
 if __name__ == "__main__":
-    QGuiApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
-    QGuiApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
-    QGuiApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
+    # QGuiApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
+    # QGuiApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
+    # QGuiApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
 
     app = QApplication(sys.argv)  # 创建应用
     window = PickName()  # 创建主窗口
