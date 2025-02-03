@@ -6,6 +6,7 @@ import time
 import requests
 import webbrowser
 import pyttsx3
+import threading
 
 from ui import Ui_MainWindow
 from PyQt5.QtWidgets import *
@@ -101,11 +102,12 @@ class PickName(QMainWindow, Ui_MainWindow):
         # 播报
         self.engine = pyttsx3.init()
         # 设置语速
-        self.engine.setProperty('rate', 150)
-        # 设置音量
-        self.engine.setProperty('volume', 1.0)
-        # 设置语音合成器
-        self.engine.setProperty('voice', "3")
+        self.engine.setProperty('rate', 170)
+        # # 设置音量
+        # self.engine.setProperty('volume', 1.0)
+        # # 设置语音合成器
+        # self.engine.setProperty('voice', "3")
+        self.lock = threading.Lock()  # 核心锁
 
         self.read_config()
         self.update_stats()
@@ -335,8 +337,8 @@ class PickName(QMainWindow, Ui_MainWindow):
             self.name_label.setText(self.selected_name)
             self.pick_name_button.setDisabled(False)
             self.reset_button.setDisabled(False)
-            # if self.speak_name:
-            #     self.say(self.selected_name)
+            if self.speak_name:
+                self.say(self.selected_name)
             if self.recite:
                 self.is_running = False
                 self.perform_countdown(self.wait_recite_time)
@@ -512,8 +514,20 @@ class PickName(QMainWindow, Ui_MainWindow):
             self.is_save_checkbox.stateChanged.connect(self.set_save)
 
     def say(self, text):
-        self.engine.say(text)
-        self.engine.runAndWait()
+        # 线程锁 by deepseek-r1
+        def _speak():
+            try:
+                self.engine.say(text)
+                self.engine.runAndWait()
+            except Exception as e:
+                print(f"语音错误: {e}")
+            finally:
+                self.lock.release()
+
+        if self.lock.acquire(blocking=False):  # 非阻塞获取锁
+            threading.Thread(target=_speak, daemon=True).start()
+        else:
+            print("当前有语音正在播放，忽略新请求")
 
 
 class RoundFloatingWindow(QWidget):
