@@ -4,7 +4,7 @@
 
 # ClassNamePicker
 
-![banner](classnamepicker-screenshot.png)
+![banner](images/classnamepicker-screenshot.png)
 
 [![Stars](https://img.shields.io/github/stars/Chengzi600/RandomPickName?label=Stars)](https://github.com/ClassIsland/ClassIsland)
 [![Release](https://img.shields.io/github/v/release/Chengzi600/RandomPickName?style=flat-square&color=%233fb950&label=正式版)](https://github.com/ClassIsland/ClassIsland/releases/latest)
