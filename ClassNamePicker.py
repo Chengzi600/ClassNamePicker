@@ -9,16 +9,17 @@ import pyttsx3
 import threading
 
 from ui import Ui_MainWindow
+from FloatingWindow import *
+from ConfigPage import *
 from PyQt5.QtWidgets import *
-from PyQt5.QtCore import QTimer, Qt, QPoint, QRect
-from PyQt5.QtGui import QGuiApplication, QPainter, QBrush, QColor, QFont
+from PyQt5.QtCore import QTimer, Qt
 
 
 class PickName(QMainWindow, Ui_MainWindow):
     def __init__(self):
         # 版本信息
-        self.version = '1.4.4'
-        self.version_time = '2025.2.3'
+        self.version = 'v1.4.5'
+        self.version_time = '2025.4.18'
         self.version_info = ''
         self.config_version = '1.1.4'
 
@@ -44,19 +45,23 @@ class PickName(QMainWindow, Ui_MainWindow):
         self.pick_only_b = False
         self.speak_name = False
         self.pick_balanced = False
+        self.is_show_floating = True
         self.animation_time = 1.0
         self.picked_count = 0
         self.wait_recite_time = 3
+        self.floating_size = 130
 
         self.start_time = 0
         self.elapsed_time = 0
         self.is_running = False
         self.selected_name = ''
 
+        self.config_window = None
+
         super().__init__()  # 初始化QMainWindow
         self.setupUi(self)  # 使用UI设置界面
         self.setWindowTitle(
-            "课堂随机点名{}- ClassNamePicker - v{}({})".format(self.version_info, self.version, self.version_time))
+            "课堂随机点名{}- ClassNamePicker - {}({})".format(self.version_info, self.version, self.version_time))
         # 禁止调整窗口大小
         # self.setFixedSize(self.size())  # 使窗口大小固定
         # 禁用最大化按钮
@@ -64,17 +69,11 @@ class PickName(QMainWindow, Ui_MainWindow):
         # 禁用最小化按钮
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowMinimizeButtonHint)
 
-        # 创建悬浮窗实例
-        self.floating_window = RoundFloatingWindow(self)
-
         # 抽取名字按钮
         self.pick_name_button.clicked.connect(self.pick_name)
 
         # 重置按钮
         self.reset_button.clicked.connect(self.reset)
-
-        # 复选框，是否保存
-        self.is_save_checkbox.stateChanged.connect(self.set_save)
 
         # 复选框，是否背书模式
         self.pick_time_checkbox.stateChanged.connect(self.set_recite)
@@ -87,17 +86,11 @@ class PickName(QMainWindow, Ui_MainWindow):
         # 复选框，是否重复抽取
         self.pick_again_checkbox.stateChanged.connect(self.set_pick_again)
 
-        # 复选框，是否显示动画
-        self.pick_animation_checkbox.stateChanged.connect(self.set_animation)
-
-        # 复选框，是否读名字
-        self.pick_read_checkbox.stateChanged.connect(self.set_speak)
-
         # 链接 Action
         self.about_action.triggered.connect(self.about_menu)
-        self.update_action.triggered.connect(self.check_update_menu)
         self.github_action.triggered.connect(self.github_menu)
         self.exit_action.triggered.connect(self.exit)
+        self.config_action.triggered.connect(self.open_config_page)
 
         # 播报
         self.engine = pyttsx3.init()
@@ -112,27 +105,34 @@ class PickName(QMainWindow, Ui_MainWindow):
         self.read_config()
         self.update_stats()
 
+        # 创建悬浮窗实例
+        self.floating_window = FloatingWindow(size=self.floating_size, parent=self)
+
     # 配置文件读取
     def read_config(self):
         def create_config(is_upgrade=False):
             if is_upgrade:
                 config_v['picked_count'] = self.picked_count
-            with open(file_dir, 'w+', encoding='utf-8') as config_file_c:
-                json.dump(config_v, config_file_c)
+                with open(file_dir, 'w+', encoding='utf-8') as config_file_c:
+                    json.dump(config_v, config_file_c)
+
+            if not os.path.exists(file_dir):
+                with open(file_dir, 'w+', encoding='utf-8') as config_file_c:
+                    json.dump(config_v, config_file_c)
             if not os.path.exists(names_file_dir):
                 with open(names_file_dir, 'w', encoding='utf-8') as names_file_c:
                     names_file_c.write(example_names)
             if not os.path.exists(g_names_file_dir):
                 with open(g_names_file_dir, 'w', encoding='utf-8') as g_names_file_c:
                     g_names_file_c.write(g_example_names)
-            # with open(file_dir) as config_file_r:
-            # config = json.load(config_file_r)
-            # config_d = json.dumps(config, sort_keys=True, indent=4, separators=(',', ': '))
+            if not os.path.exists(file_dir_2):
+                with open(file_dir_2, 'w', encoding='utf-8') as config_file_2_c:
+                    json.dump(config_v2, config_file_2_c)
 
         try:
             os.makedirs('./PickNameConfig/', exist_ok=True)
             file_dir = r'./PickNameConfig/config.json'
-            # 创建names.txt和g_names.txt文件并写入示例内容
+            file_dir_2 = r'./PickNameConfig/name_changes.json'
             names_file_dir = './PickNameConfig/names.txt'
             g_names_file_dir = './PickNameConfig/g_names.txt'
             example_names = '名字1\n名字2\n名字3\n'
@@ -143,15 +143,27 @@ class PickName(QMainWindow, Ui_MainWindow):
                 'animation': self.animation,
                 'animation_time': self.animation_time,
                 'is_save': self.is_save,
-                'speak_name': self.speak_name,
+                'show_floating': self.is_show_floating,
+                'floating_size': self.floating_size,
                 'pick_balanced': self.pick_balanced,
                 'picked_count': self.picked_count,
+                'speak_name': self.speak_name,
+                "window_width": self.width(),
+                "window_height": self.height()
                 'config_version': self.config_version,
                 'can_pick_names': self.names,
             }
+            config_v2 = {
+                'speak_change_a1': '',
+                'speak_change_a2': '',
+                'speak_change_b1': '',
+                'speak_change_b2': '',
+                'speak_change_c1': '',
+                'speak_change_c2': '',
+            }
+
             try:
                 with open(names_file_dir, 'r', encoding='utf-8') as names_file:
-                    # 逐行读取文件并去掉每行末尾的换行符
                     self.names = [line.strip() for line in names_file if line.strip()]
                 with open(g_names_file_dir, 'r', encoding='utf-8') as g_names_file:
                     self.g_names = [line.strip() for line in g_names_file if line.strip()]
@@ -167,10 +179,8 @@ class PickName(QMainWindow, Ui_MainWindow):
                         create_config(True)
                         QMessageBox.information(self, '提示', '配置文件更新成功!')
                         return
-
                     self.block_signals()
                     self.is_save = config['is_save']
-                    self.is_save_checkbox.setChecked(self.is_save)
                     self.pick_again = config['pick_again']
                     self.animation = config['animation']
                     self.animation_time = config['animation_time']
@@ -178,19 +188,28 @@ class PickName(QMainWindow, Ui_MainWindow):
                     self.picked_count = config['picked_count']
                     self.speak_name = config['speak_name']
                     self.pick_balanced = config['pick_balanced']
-                    self.pick_read_checkbox.setChecked(self.speak_name)
+                    self.floating_size = config['floating_size']
                     self.pick_again_checkbox.setChecked(self.pick_again)
-                    self.pick_animation_checkbox.setChecked(self.animation)
                     self.block_signals(False)
+
+                with open(file_dir_2, encoding='utf-8') as config_file_2:
+                    config_2 = json.load(config_file_2)
+                    self.speak_change_a1 = config_2['speak_change_a1']
+                    self.speak_change_a2 = config_2['speak_change_a2']
+                    self.speak_change_b1 = config_2['speak_change_b1']
+                    self.speak_change_b2 = config_2['speak_change_b2']
+                    self.speak_change_c1 = config_2['speak_change_c1']
+                    self.speak_change_c2 = config_2['speak_change_c2']
 
             except FileNotFoundError as e:
                 create_config()
-                QMessageBox.information(self, '提示', '配置文件夹创建成功!\n请在names.txt文件中编辑名单!')
-                print(e)
-                sys.exit('CREATED_CONFIG_SUCCESSFULLY')
+                # QMessageBox.information(self, '提示', '配置文件创建成功!请在names.txt文件中编辑名单!')
+                # print(e)
+                # sys.exit('CREATED_CONFIG_SUCCESSFULLY')
+
         except Exception as e:
             QMessageBox.critical(self, '错误',
-                                 '配置文件创建或读取错误!\n请检查程序是否有对当前文件夹的读写权限\n或尝试删除配置文件夹中的config.json\n错误信息:' + str(
+                                 '配置文件读写错误!\n请尝试删除配置文件夹中的config.json\n错误信息:' + str(
                                      e))
             print("错误信息:", e)
             sys.exit('FAILED_TO_LOAD_CONFIG')
@@ -201,10 +220,7 @@ class PickName(QMainWindow, Ui_MainWindow):
             file_dir = r'./PickNameConfig/config.json'
             with open(file_dir, 'r', encoding='utf-8') as config_file:
                 config = json.load(config_file)
-                config['is_save'] = self.is_save
                 config['pick_again'] = self.pick_again
-                config['animation'] = self.animation
-                config['speak_name'] = self.speak_name
                 config['pick_balanced'] = self.pick_balanced
                 if self.is_save:
                     config['can_pick_names'] = self.can_pick_names
@@ -496,22 +512,22 @@ class PickName(QMainWindow, Ui_MainWindow):
             self.save_config()
             QApplication.exit()
 
+    def open_config_page(self):
+        """打开配置窗口"""
+        if not self.config_window:  # 避免重复创建
+            self.config_window = ConfigWindow()
+        self.config_window.show()
+        self.config_window.raise_()  # 窗口置顶
 
     def block_signals(self, state=True):
         if state:
             self.b_names_pick_checkbox.stateChanged.disconnect()
             self.pick_again_checkbox.stateChanged.disconnect()
             self.g_names_pick_checkbox.stateChanged.disconnect()
-            self.pick_animation_checkbox.stateChanged.disconnect()
-            self.pick_read_checkbox.stateChanged.disconnect()
-            self.is_save_checkbox.stateChanged.disconnect()
         else:
             self.b_names_pick_checkbox.stateChanged.connect(self.set_pick_group_b)
             self.g_names_pick_checkbox.stateChanged.connect(self.set_pick_group_g)
             self.pick_again_checkbox.stateChanged.connect(self.set_pick_again)
-            self.pick_animation_checkbox.stateChanged.connect(self.set_animation)
-            self.pick_read_checkbox.stateChanged.connect(self.set_speak)
-            self.is_save_checkbox.stateChanged.connect(self.set_save)
 
     def say(self, text):
         # 线程锁 by deepseek-r1
@@ -528,105 +544,6 @@ class PickName(QMainWindow, Ui_MainWindow):
             threading.Thread(target=_speak, daemon=True).start()
         else:
             print("当前有语音正在播放，忽略新请求")
-
-
-class RoundFloatingWindow(QWidget):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
-        self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setFixedSize(140, 140)  # 悬浮窗大小
-
-        # 用于记录鼠标位置
-        self.old_pos = QPoint()
-
-        # 父窗口（主窗口）
-        self.parent_window = parent
-
-        # 吸附距离
-        self.snap_distance = 20
-        # 默认透明度
-        self.default_opacity = 1.0
-        self.snap_opacity = 0.7
-
-        # 标志：是否正在拖动
-        self.is_dragging = False
-
-    def paintEvent(self, event):
-        # 绘制圆形和文字
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-
-        # 绘制蓝色圆形
-        brush = QBrush(QColor(100, 200, 255, 200))  # 设置颜色和透明度
-        painter.setBrush(brush)
-        painter.setPen(Qt.NoPen)
-        painter.drawEllipse(0, 0, self.width(), self.height())
-
-        # 绘制文字
-        painter.setPen(QColor(255, 255, 255))
-        font = QFont("黑体", 10, QFont.Bold)
-        painter.setFont(font)
-        text = "随机点名"
-        painter.drawText(self.rect(), Qt.AlignCenter, text)
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            self.old_pos = event.globalPos() - self.pos()  # 记录鼠标点击时的位置
-            self.is_dragging = False  # 初始为未拖动
-            event.accept()
-
-    def mouseMoveEvent(self, event):
-        if event.buttons() == Qt.LeftButton:
-            self.is_dragging = True  # 标志正在拖动
-            self.move(event.globalPos() - self.old_pos)  # 更新窗口位置
-            self.snap_to_edge()
-            event.accept()
-
-    def mouseReleaseEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            if not self.is_dragging:
-                self.hide()  # 如果没有拖动，触发单击事件
-                if self.parent_window:
-                    self.parent_window.show()
-            event.accept()
-
-
-    def snap_to_edge(self):
-        # 获取屏幕大小
-        screen_geometry = QApplication.primaryScreen().geometry()
-        screen_rect = QRect(0, 0, screen_geometry.width(), screen_geometry.height())
-
-        # 当前窗口中心点
-        center = self.geometry().center()
-
-        # 计算与各边缘的距离
-        distances = {
-            "left": abs(center.x() - screen_rect.left()),
-            "right": abs(center.x() - screen_rect.right()),
-            "top": abs(center.y() - screen_rect.top()),
-            "bottom": abs(center.y() - screen_rect.bottom())
-        }
-
-        # 找到最近的边缘
-        nearest_edge = min(distances, key=distances.get)
-
-        # 吸附到最近边缘并只显示半圆
-        if distances[nearest_edge] < self.snap_distance:
-            if nearest_edge == "left":
-                self.move(screen_rect.left() - self.width() // 2, self.y())  # 左边吸附
-            elif nearest_edge == "right":
-                self.move(screen_rect.right() - self.width() // 2, self.y())  # 右边吸附
-            elif nearest_edge == "top":
-                self.move(self.x(), screen_rect.top() - self.height() // 2)  # 顶部吸附
-            elif nearest_edge == "bottom":
-                self.move(self.x(), screen_rect.bottom() - self.height() // 2)  # 底部吸附
-
-            # 提高透明度
-            self.setWindowOpacity(self.snap_opacity)
-        else:
-            # 恢复默认透明度
-            self.setWindowOpacity(self.default_opacity)
 
 
 if __name__ == "__main__":

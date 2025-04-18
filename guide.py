@@ -9,7 +9,7 @@ class Guide(QMainWindow, Ui_MainWindow):
         super().__init__()  # 初始化QMainWindow
         self.setupUi(self)  # 使用UI设置界面
 
-        self.version = '1.4.3'
+        self.version = 'v1.4.4'
 
         self.setWindowTitle("设置向导- ClassNamePicker - v{}".format(self.version))
 

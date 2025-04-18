@@ -9,8 +9,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>649</width>
-    <height>678</height>
+    <width>577</width>
+    <height>601</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -609,6 +609,22 @@
        <number>50</number>
       </property>
       <item>
+       <widget class="QCheckBox" name="checkBox_12">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="font">
+         <font>
+          <family>宋体</family>
+          <pointsize>12</pointsize>
+         </font>
+        </property>
+        <property name="text">
+         <string>开发中...</string>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QCheckBox" name="pick_again_checkbox">
         <property name="font">
          <font>
@@ -634,77 +650,6 @@
         </property>
         <property name="text">
          <string>计时器</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QCheckBox" name="pick_read_checkbox">
-        <property name="font">
-         <font>
-          <family>宋体</family>
-          <pointsize>12</pointsize>
-         </font>
-        </property>
-        <property name="text">
-         <string>开启播报</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </item>
-    <item>
-     <layout class="QHBoxLayout" name="config_ui_3">
-      <property name="spacing">
-       <number>7</number>
-      </property>
-      <property name="sizeConstraint">
-       <enum>QLayout::SetDefaultConstraint</enum>
-      </property>
-      <property name="leftMargin">
-       <number>50</number>
-      </property>
-      <item>
-       <widget class="QCheckBox" name="pick_animation_checkbox">
-        <property name="font">
-         <font>
-          <family>宋体</family>
-          <pointsize>12</pointsize>
-         </font>
-        </property>
-        <property name="layoutDirection">
-         <enum>Qt::LeftToRight</enum>
-        </property>
-        <property name="text">
-         <string>开启动画</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QCheckBox" name="is_save_checkbox">
-        <property name="font">
-         <font>
-          <family>宋体</family>
-          <pointsize>12</pointsize>
-         </font>
-        </property>
-        <property name="text">
-         <string>退出保存</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QCheckBox" name="checkBox_12">
-        <property name="enabled">
-         <bool>false</bool>
-        </property>
-        <property name="font">
-         <font>
-          <family>宋体</family>
-          <pointsize>12</pointsize>
-         </font>
-        </property>
-        <property name="text">
-         <string>开发中...</string>
         </property>
        </widget>
       </item>
@@ -739,7 +684,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>649</width>
+     <width>577</width>
      <height>26</height>
     </rect>
    </property>
@@ -750,10 +695,16 @@
     <addaction name="about_action"/>
     <addaction name="exit_action"/>
     <addaction name="separator"/>
-    <addaction name="update_action"/>
     <addaction name="github_action"/>
    </widget>
+   <widget class="QMenu" name="menu">
+    <property name="title">
+     <string>设置</string>
+    </property>
+    <addaction name="config_action"/>
+   </widget>
    <addaction name="menu_about"/>
+   <addaction name="menu"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <action name="update_action">
@@ -774,6 +725,11 @@
   <action name="exit_action">
    <property name="text">
     <string>退出程序</string>
+   </property>
+  </action>
+  <action name="config_action">
+   <property name="text">
+    <string>打开配置面板</string>
    </property>
   </action>
  </widget>
