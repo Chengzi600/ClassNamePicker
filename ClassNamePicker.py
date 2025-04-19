@@ -3,8 +3,6 @@ import os
 import random
 import sys
 import time
-import requests
-import webbrowser
 import pyttsx3
 import threading
 
@@ -19,9 +17,9 @@ class PickName(QMainWindow, Ui_MainWindow):
     def __init__(self):
         # 版本信息
         self.version = 'v1.4.5'
-        self.version_time = '2025.4.18'
+        self.version_time = '2025.4.19'
         self.version_info = ''
-        self.config_version = '1.1.4'
+        self.config_version = '1.1.5'
 
         # 初始名单
         self.names = []
@@ -50,6 +48,7 @@ class PickName(QMainWindow, Ui_MainWindow):
         self.picked_count = 0
         self.wait_recite_time = 3
         self.floating_size = 130
+        self.speak_speed = 170
 
         self.start_time = 0
         self.elapsed_time = 0
@@ -62,8 +61,6 @@ class PickName(QMainWindow, Ui_MainWindow):
         self.setupUi(self)  # 使用UI设置界面
         self.setWindowTitle(
             "课堂随机点名{}- ClassNamePicker - {}({})".format(self.version_info, self.version, self.version_time))
-        # 禁止调整窗口大小
-        # self.setFixedSize(self.size())  # 使窗口大小固定
         # 禁用最大化按钮
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowMaximizeButtonHint)
         # 禁用最小化按钮
@@ -99,7 +96,7 @@ class PickName(QMainWindow, Ui_MainWindow):
         # 播报
         self.engine = pyttsx3.init()
         # 设置语速
-        self.engine.setProperty('rate', 170)
+        self.engine.setProperty('rate', self.speak_speed)
         self.lock = threading.Lock()  # 核心锁
 
         self.read_config()
@@ -157,6 +154,7 @@ class PickName(QMainWindow, Ui_MainWindow):
                 'pick_balanced': self.pick_balanced,
                 'picked_count': self.picked_count,
                 'speak_name': self.speak_name,
+                'speak_speed': self.speak_speed,
                 "window_width": self.width(),
                 "window_height": self.height(),
                 'config_version': self.config_version,
@@ -196,12 +194,15 @@ class PickName(QMainWindow, Ui_MainWindow):
                     self.can_pick_names = config['can_pick_names']
                     self.picked_count = config['picked_count']
                     self.speak_name = config['speak_name']
+                    self.speak_speed = config['speak_speed']
                     self.pick_balanced = config['pick_balanced']
                     self.floating_size = config['floating_size']
                     window_height = config['window_height']
                     window_width = config['window_width']
+                    self.is_show_floating = config['show_floating']
                     self.resize(window_width, window_height)
                     self.pick_again_checkbox.setChecked(self.pick_again)
+                    self.engine.setProperty('rate', self.speak_speed)
                     self.block_signals(False)
 
                 with open(file_dir_2, encoding='utf-8') as config_file_2:
@@ -213,7 +214,7 @@ class PickName(QMainWindow, Ui_MainWindow):
                     self.speak_change_c1 = config_2['speak_change_c1']
                     self.speak_change_c2 = config_2['speak_change_c2']
 
-            except FileNotFoundError as e:
+            except FileNotFoundError:
                 create_config()
                 # QMessageBox.information(self, '提示', '配置文件创建成功!请在names.txt文件中编辑名单!')
                 # print(e)
@@ -508,6 +509,8 @@ class PickName(QMainWindow, Ui_MainWindow):
         webbrowser.open("https://github.com/Chengzi600/ClassNamePicker/releases")
 
     def closeEvent(self, event):
+        if not self.is_show_floating:
+            self.exit()
         if self.pick_only_g or self.pick_only_b or self.pick_again:
             self.reset(no_tip=True)
             self.hide()
@@ -525,9 +528,6 @@ class PickName(QMainWindow, Ui_MainWindow):
         self.save_timer.stop()
         # 延迟500毫秒后触发保存
         self.save_timer.start(500)
-
-        current_width = self.width()
-        current_height = self.height()
         # print(f"窗口尺寸已改变 → 宽度: {current_width}px, 高度: {current_height}px")
 
     def exit(self):

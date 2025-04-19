@@ -1,4 +1,5 @@
 import json
+import os
 import webbrowser
 import requests
 from PyQt5.QtWidgets import QMessageBox
@@ -14,7 +15,7 @@ class ConfigWindow(QtWidgets.QMainWindow, Ui_ConfigMainWindow):
         self.setupUi(self)
 
         self.setWindowTitle('配置面板')
-        self.version = '1.4.5'
+        self.version = 'v1.4.5'
 
         # 禁用最大化按钮
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowMaximizeButtonHint)
@@ -31,8 +32,8 @@ class ConfigWindow(QtWidgets.QMainWindow, Ui_ConfigMainWindow):
 
         # 连接信号槽
         self.save_button.clicked.connect(self.save_config)
-        # self.name_button.clicked.connect(self.load_name_list)
-        # self.gname_button.clicked.connect(self.load_girls_list)
+        self.name_button.clicked.connect(self.open_name_file)
+        self.gname_button.clicked.connect(self.open_girls_file)
         self.update_button.clicked.connect(self.check_update)
         self.cancel_button.clicked.connect(self.cancel)
 
@@ -45,10 +46,12 @@ class ConfigWindow(QtWidgets.QMainWindow, Ui_ConfigMainWindow):
         self.save_checkbox.setChecked(self.is_save)
         self.speak_checkbox.setChecked(self.speak_name)
         self.float_chackbox.setChecked(self.show_floating)
+        self.animation_checkBox.setChecked(self.animation)
 
         # 高级设置
         self.ani_time_edit.setText(str(self.animation_time))
         self.floatsize_edit.setText(str(self.floating_size))
+        self.speed_edit.setText(str(self.speak_speed))
 
         # 多音字设置
         self.a1.setText(self.speak_change_a1)
@@ -60,13 +63,9 @@ class ConfigWindow(QtWidgets.QMainWindow, Ui_ConfigMainWindow):
 
     def setup_validators(self):
         """设置输入验证器"""
-        # 动画时长验证器（0.1-5.0秒）
         self.ani_time_edit.setValidator(QtGui.QDoubleValidator(0.1, 5.0, 1))
-
-        # 悬浮窗大小验证器（50-1000像素）
+        self.speed_edit.setValidator(QtGui.QIntValidator(10, 1000))
         self.floatsize_edit.setValidator(QtGui.QIntValidator(50, 1000))
-
-        # 多音字输入验证（禁止特殊字符）
         regex = QtCore.QRegExp("^[\u4e00-\u9fa5a-zA-Z0-9]+$")
         for field in [self.a1, self.a2, self.b1, self.b2, self.c1, self.c2]:
             field.setValidator(QtGui.QRegExpValidator(regex))
@@ -83,6 +82,7 @@ class ConfigWindow(QtWidgets.QMainWindow, Ui_ConfigMainWindow):
             self.speak_name = config['speak_name']
             self.show_floating = config['show_floating']
             self.floating_size = config['floating_size']
+            self.speak_speed = config['speak_speed']
 
         with open(file_dir_2, encoding='utf-8') as config_file_2:
             config_2 = json.load(config_file_2)
@@ -101,13 +101,16 @@ class ConfigWindow(QtWidgets.QMainWindow, Ui_ConfigMainWindow):
             with open(file_dir, 'r', encoding='utf-8') as config_file:
                 config = json.load(config_file)
                 config['is_save'] = self.save_checkbox.isChecked()
+                config['show_floating'] = self.float_chackbox.isChecked()
                 config['animation'] = self.animation_checkBox.isChecked()
                 config['speak_name'] = self.speak_checkbox.isChecked()
                 try:
                     config['floating_size'] = int(self.floatsize_edit.text())
                     config['animation_time'] = float(self.ani_time_edit.text())
+                    config['speak_speed'] = int(self.speed_edit.text())
                 except ValueError:
                     QMessageBox.critical(self, '错误', '数值不合法!')
+                    return
                 if not self.validate_inputs(config):
                     return
             with open(file_dir, 'w', encoding='utf-8') as config_file:
@@ -137,6 +140,9 @@ class ConfigWindow(QtWidgets.QMainWindow, Ui_ConfigMainWindow):
         if not 20 <= config["floating_size"] <= 1000:
             errors.append("悬浮窗大小需在20-1000像素之间")
 
+        if not 10 <= config['speak_speed'] <= 1000:
+            errors.append("播报速度需在10-1000之间")
+
         if errors:
             QMessageBox.warning(self, "输入错误", "\n".join(errors))
             return False
@@ -144,19 +150,23 @@ class ConfigWindow(QtWidgets.QMainWindow, Ui_ConfigMainWindow):
 
     def open_name_file(self):
         """加载总名单"""
+        QMessageBox.information(self, '提示', '保存名单后，请手动点击重置按钮，避免出现问题')
+        os.startfile(r'.\PickNameConfig\names.txt')
 
     def open_girls_file(self):
         """加载女生名单"""
+        QMessageBox.information(self, '提示', '保存名单后，请手动点击重置按钮，避免出现问题')
+        os.startfile(r'.\PickNameConfig\g_names.txt')
 
     def check_update(self):
         """检查更新"""
         try:
             response = requests.get("https://api.github.com/repos/Chengzi600/ClassNamePicker/releases/latest")
             latest_version = response.json()['tag_name']
-            if latest_version == self.version:
-                latest_version = latest_version + '(已是最新版本)'
-            else:
-                latest_version = latest_version + '(发现新版本)'
+            # if latest_version == self.version:
+            #     latest_version = latest_version + '(已是最新版本)'
+            # else:
+            #     latest_version = latest_version + '(发现新版本)'
             latest_version_info = response.json()['body']
         except Exception as e:
             print('检查更新失败:', e)
@@ -164,9 +174,9 @@ class ConfigWindow(QtWidgets.QMainWindow, Ui_ConfigMainWindow):
             latest_version_info = '获取更新失败'
 
         reply = QMessageBox.question(self, '检查更新',
-                                     '检查更新:\n'
-                                     '当前最新版本: {}\n最新版本信息:\n{}\n\n'
-                                     '单击“是”打开 GitHub Releases 界面下载最新版本'.format(latest_version,
+                                     '当前版本: {}\n'
+                                     '最新版本: {}\n版本信息:\n{}\n\n'
+                                     '单击 Yes 打开 GitHub Releases 界面'.format(self.version, latest_version,
                                                                                             latest_version_info),
                                      QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
 
