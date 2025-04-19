@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>621</width>
-    <height>398</height>
+    <width>656</width>
+    <height>432</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -21,17 +21,17 @@
        <string>基本</string>
       </property>
       <layout class="QGridLayout" name="gridLayout">
+       <item row="1" column="2">
+        <widget class="QCheckBox" name="float_chackbox">
+         <property name="text">
+          <string>显示悬浮窗</string>
+         </property>
+        </widget>
+       </item>
        <item row="1" column="1">
         <widget class="QCheckBox" name="save_checkbox">
          <property name="text">
           <string>自动保存进度</string>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="0">
-        <widget class="QCheckBox" name="speak_checkbox">
-         <property name="text">
-          <string>语音播报</string>
          </property>
         </widget>
        </item>
@@ -42,10 +42,10 @@
          </property>
         </widget>
        </item>
-       <item row="0" column="0">
-        <widget class="QPushButton" name="update_button">
+       <item row="1" column="0">
+        <widget class="QCheckBox" name="speak_checkbox">
          <property name="text">
-          <string>检查更新</string>
+          <string>语音播报</string>
          </property>
         </widget>
        </item>
@@ -56,10 +56,17 @@
          </property>
         </widget>
        </item>
-       <item row="1" column="2">
-        <widget class="QCheckBox" name="float_chackbox">
+       <item row="0" column="0">
+        <widget class="QPushButton" name="update_button">
          <property name="text">
-          <string>显示悬浮窗</string>
+          <string>检查更新</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="0">
+        <widget class="QCheckBox" name="animation_checkBox">
+         <property name="text">
+          <string>抽取动画</string>
          </property>
         </widget>
        </item>
@@ -145,7 +152,7 @@
        <item row="1" column="1">
         <widget class="QLabel" name="label_8">
          <property name="text">
-          <string>悬浮窗大小:</string>
+          <string>悬浮窗大小(重启后生效):</string>
          </property>
         </widget>
        </item>
@@ -196,6 +203,13 @@
          </size>
         </property>
        </spacer>
+      </item>
+      <item>
+       <widget class="QPushButton" name="cancel_button">
+        <property name="text">
+         <string>取消</string>
+        </property>
+       </widget>
       </item>
       <item>
        <widget class="QPushButton" name="save_button">

@@ -68,6 +68,10 @@ class PickName(QMainWindow, Ui_MainWindow):
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowMaximizeButtonHint)
         # 禁用最小化按钮
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowMinimizeButtonHint)
+        self.setWindowFlags(
+            self.windowFlags() |  # 保留原有属性
+            QtCore.Qt.WindowStaysOnTopHint  # 添加置顶属性
+        )
 
         # 抽取名字按钮
         self.pick_name_button.clicked.connect(self.pick_name)
@@ -96,10 +100,6 @@ class PickName(QMainWindow, Ui_MainWindow):
         self.engine = pyttsx3.init()
         # 设置语速
         self.engine.setProperty('rate', 170)
-        # # 设置音量
-        # self.engine.setProperty('volume', 1.0)
-        # # 设置语音合成器
-        # self.engine.setProperty('voice', "3")
         self.lock = threading.Lock()  # 核心锁
 
         self.read_config()
@@ -108,8 +108,17 @@ class PickName(QMainWindow, Ui_MainWindow):
         # 创建悬浮窗实例
         self.floating_window = FloatingWindow(size=self.floating_size, parent=self)
 
-    # 配置文件读取
+        # 当前配置窗口引用
+        self.config_window = None
+
+        # 防抖动定时器配置
+        self.save_timer = QTimer()
+        self.save_timer.setSingleShot(True)  # 单次触发模式
+        self.save_timer.timeout.connect(self.save_config)
+
     def read_config(self):
+        """配置文件读取"""
+
         def create_config(is_upgrade=False):
             if is_upgrade:
                 config_v['picked_count'] = self.picked_count
@@ -149,7 +158,7 @@ class PickName(QMainWindow, Ui_MainWindow):
                 'picked_count': self.picked_count,
                 'speak_name': self.speak_name,
                 "window_width": self.width(),
-                "window_height": self.height()
+                "window_height": self.height(),
                 'config_version': self.config_version,
                 'can_pick_names': self.names,
             }
@@ -189,6 +198,9 @@ class PickName(QMainWindow, Ui_MainWindow):
                     self.speak_name = config['speak_name']
                     self.pick_balanced = config['pick_balanced']
                     self.floating_size = config['floating_size']
+                    window_height = config['window_height']
+                    window_width = config['window_width']
+                    self.resize(window_width, window_height)
                     self.pick_again_checkbox.setChecked(self.pick_again)
                     self.block_signals(False)
 
@@ -214,8 +226,8 @@ class PickName(QMainWindow, Ui_MainWindow):
             print("错误信息:", e)
             sys.exit('FAILED_TO_LOAD_CONFIG')
 
-    # 配置文件写入
     def save_config(self):
+        """配置文件写入"""
         try:
             file_dir = r'./PickNameConfig/config.json'
             with open(file_dir, 'r', encoding='utf-8') as config_file:
@@ -227,8 +239,11 @@ class PickName(QMainWindow, Ui_MainWindow):
                 else:
                     config['can_pick_names'] = self.names
                 config['picked_count'] = self.picked_count
+                config['window_width'] = self.width()
+                config['window_height'] = self.height()
             with open(file_dir, 'w', encoding='utf-8') as config_file:
                 json.dump(config, config_file, ensure_ascii=False)
+            print('配置文件已保存')
         except Exception as e:
             QMessageBox.critical(self, '错误', '配置文件写入错误！')
             print("配置文件写入错误:", e)
@@ -331,7 +346,6 @@ class PickName(QMainWindow, Ui_MainWindow):
             self.update_stats()
 
     def pick_name(self):
-
         self.is_running = False
 
         self.pick_name_button.setDisabled(True)
@@ -502,7 +516,19 @@ class PickName(QMainWindow, Ui_MainWindow):
             self.save_config()
             self.hide()
             self.floating_window.show()
-        event.ignore()  # 忽略
+        event.ignore()
+
+    def resizeEvent(self, event):
+        """重写窗口大小变化事件处理"""
+        super().resizeEvent(event)
+        # 取消未执行的保存操作，重新开始计时
+        self.save_timer.stop()
+        # 延迟500毫秒后触发保存
+        self.save_timer.start(500)
+
+        current_width = self.width()
+        current_height = self.height()
+        # print(f"窗口尺寸已改变 → 宽度: {current_width}px, 高度: {current_height}px")
 
     def exit(self):
         if self.pick_only_g or self.pick_only_b or self.pick_again:
@@ -514,8 +540,14 @@ class PickName(QMainWindow, Ui_MainWindow):
 
     def open_config_page(self):
         """打开配置窗口"""
-        if not self.config_window:  # 避免重复创建
+        if not self.config_window:
             self.config_window = ConfigWindow()
+            # 连接关闭信号
+            self.config_window.closed.connect(self.read_config)
+            # 窗口关闭时自动解除引用
+            self.config_window.destroyed.connect(
+                lambda: setattr(self, 'config_window', None)
+            )
         self.config_window.show()
         self.config_window.raise_()  # 窗口置顶
 
@@ -531,6 +563,13 @@ class PickName(QMainWindow, Ui_MainWindow):
 
     def say(self, text):
         # 线程锁 by deepseek-r1
+        if text == self.speak_change_a1:
+            text = self.speak_change_a2
+        elif text == self.speak_change_b1:
+            text = self.speak_change_b2
+        elif text == self.speak_change_c1:
+            text = self.speak_change_c2
+
         def _speak():
             try:
                 self.engine.say(text)

@@ -1,27 +1,40 @@
 import json
 import webbrowser
 import requests
-from PyQt5 import QtCore, QtGui, QtWidgets
-from PyQt5.QtWidgets import QFileDialog, QMessageBox
+from PyQt5.QtWidgets import QMessageBox
+from PyQt5.QtCore import Qt
 from config_ui import *
-
-CONFIG_FILE = "config.json"
 
 
 class ConfigWindow(QtWidgets.QMainWindow, Ui_ConfigMainWindow):
+    closed = QtCore.pyqtSignal(bool)
+
     def __init__(self):
         super().__init__()
         self.setupUi(self)
 
+        self.setWindowTitle('配置面板')
+        self.version = '1.4.5'
+
+        # 禁用最大化按钮
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowMaximizeButtonHint)
+        # 禁用最小化按钮
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowMinimizeButtonHint)
+        self.setWindowFlags(
+            self.windowFlags() |  # 保留原有属性
+            QtCore.Qt.WindowStaysOnTopHint  # 添加置顶属性
+        )
+
         # 初始化配置
-        self.config = self.load_config()
+        self.load_config()
         self.init_ui()
 
         # 连接信号槽
         self.save_button.clicked.connect(self.save_config)
-        #self.name_button.clicked.connect(self.load_name_list)
-        #self.gname_button.clicked.connect(self.load_girls_list)
+        # self.name_button.clicked.connect(self.load_name_list)
+        # self.gname_button.clicked.connect(self.load_girls_list)
         self.update_button.clicked.connect(self.check_update)
+        self.cancel_button.clicked.connect(self.cancel)
 
         # 输入验证器
         self.setup_validators()
@@ -29,19 +42,21 @@ class ConfigWindow(QtWidgets.QMainWindow, Ui_ConfigMainWindow):
     def init_ui(self):
         """从配置文件初始化界面状态"""
         # 基本设置
-        self.save_checkbox.setChecked(self.config.get("auto_save", False))
-        self.speak_checkbox.setChecked(self.config.get("speak", True))
-        self.float_chackbox.setChecked(self.config.get("show_float", True))
+        self.save_checkbox.setChecked(self.is_save)
+        self.speak_checkbox.setChecked(self.speak_name)
+        self.float_chackbox.setChecked(self.show_floating)
 
         # 高级设置
-        self.ani_time_edit.setText(str(self.config.get("animation_time", 0.3)))
-        self.floatsize_edit.setText(str(self.config.get("float_size", 200)))
+        self.ani_time_edit.setText(str(self.animation_time))
+        self.floatsize_edit.setText(str(self.floating_size))
 
         # 多音字设置
-        polyphones = self.config.get("polyphones", [])
-        for i, (orig, repl) in enumerate(polyphones[:3]):  # 最多三组
-            getattr(self, f"a{i + 1}").setText(orig)
-            getattr(self, f"a{i + 1}2").setText(repl)
+        self.a1.setText(self.speak_change_a1)
+        self.a2.setText(self.speak_change_a2)
+        self.b1.setText(self.speak_change_b1)
+        self.b2.setText(self.speak_change_b2)
+        self.c1.setText(self.speak_change_c1)
+        self.c2.setText(self.speak_change_c2)
 
     def setup_validators(self):
         """设置输入验证器"""
@@ -66,6 +81,7 @@ class ConfigWindow(QtWidgets.QMainWindow, Ui_ConfigMainWindow):
             self.animation = config['animation']
             self.animation_time = config['animation_time']
             self.speak_name = config['speak_name']
+            self.show_floating = config['show_floating']
             self.floating_size = config['floating_size']
 
         with open(file_dir_2, encoding='utf-8') as config_file_2:
@@ -77,32 +93,39 @@ class ConfigWindow(QtWidgets.QMainWindow, Ui_ConfigMainWindow):
             self.speak_change_c1 = config_2['speak_change_c1']
             self.speak_change_c2 = config_2['speak_change_c2']
 
-        return config
-
     def save_config(self):
         """保存配置"""
         try:
             file_dir = r'./PickNameConfig/config.json'
+            file_dir_2 = r'./PickNameConfig/name_changes.json'
             with open(file_dir, 'r', encoding='utf-8') as config_file:
                 config = json.load(config_file)
-                config['is_save'] = self.is_save
-                config['animation'] = self.animation
-                config['speak_name'] = self.speak_name
+                config['is_save'] = self.save_checkbox.isChecked()
+                config['animation'] = self.animation_checkBox.isChecked()
+                config['speak_name'] = self.speak_checkbox.isChecked()
+                try:
+                    config['floating_size'] = int(self.floatsize_edit.text())
+                    config['animation_time'] = float(self.ani_time_edit.text())
+                except ValueError:
+                    QMessageBox.critical(self, '错误', '数值不合法!')
+                if not self.validate_inputs(config):
+                    return
             with open(file_dir, 'w', encoding='utf-8') as config_file:
                 json.dump(config, config_file, ensure_ascii=False)
+            with open(file_dir_2, 'w', encoding='utf-8') as config_file_2:
+                config_2 = {
+                    'speak_change_a1': self.a1.text(),
+                    'speak_change_a2': self.a2.text(),
+                    'speak_change_b1': self.b1.text(),
+                    'speak_change_b2': self.b2.text(),
+                    'speak_change_c1': self.c1.text(),
+                    'speak_change_c2': self.c2.text(),
+                }
+                json.dump(config_2, config_file_2, ensure_ascii=False)
+                QMessageBox.information(self, '提示', '保存成功')
         except Exception as e:
             QMessageBox.critical(self, '错误', '配置文件写入错误！')
             print("配置文件写入错误:", e)
-
-    def get_polyphones(self):
-        """获取多音字配置"""
-        polyphones = []
-        for group in ["a", "b", "c"]:
-            orig = getattr(self, f"{group}1").text().strip()
-            repl = getattr(self, f"{group}2").text().strip()
-            if orig and repl:
-                polyphones.append((orig, repl))
-        return polyphones
 
     def validate_inputs(self, config):
         """验证输入有效性"""
@@ -114,11 +137,6 @@ class ConfigWindow(QtWidgets.QMainWindow, Ui_ConfigMainWindow):
         if not 20 <= config["floating_size"] <= 1000:
             errors.append("悬浮窗大小需在20-1000像素之间")
 
-        for orig, repl in config["polyphones"]:
-            if not orig or not repl:
-                errors.append("多音字替换需要填写完整的两边内容")
-                break
-
         if errors:
             QMessageBox.warning(self, "输入错误", "\n".join(errors))
             return False
@@ -127,10 +145,8 @@ class ConfigWindow(QtWidgets.QMainWindow, Ui_ConfigMainWindow):
     def open_name_file(self):
         """加载总名单"""
 
-
-    def open_girls_list(self):
+    def open_girls_file(self):
         """加载女生名单"""
-
 
     def check_update(self):
         """检查更新"""
@@ -156,6 +172,15 @@ class ConfigWindow(QtWidgets.QMainWindow, Ui_ConfigMainWindow):
 
         if reply == QMessageBox.Yes:
             webbrowser.open("https://github.com/Chengzi600/ClassNamePicker/releases")
+
+    def cancel(self):
+        self.close()
+
+    def closeEvent(self, event):
+        """重写关闭事件"""
+        # 发射关闭信号（True表示需要刷新，False不需要）
+        self.closed.emit(True)
+        super().closeEvent(event)
 
 
 if __name__ == "__main__":
