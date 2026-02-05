@@ -2,13 +2,15 @@ from PyQt5.QtGui import QPainter, QBrush, QColor, QFont
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import Qt, QPoint, QRect
 
+from loguru import logger
+
 
 class FloatingWindow(QWidget):
-    def __init__(self, size, parent=None):
+    def __init__(self, size_x, size_y, parent=None):
         super().__init__(parent)
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
         self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setFixedSize(size, size)  # 悬浮窗大小
+        self.setFixedSize(size_x, size_y)  # 悬浮窗大小
 
         # 用于记录鼠标位置
         self.old_pos = QPoint()
@@ -29,19 +31,25 @@ class FloatingWindow(QWidget):
         # 绘制圆形和文字
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-
-        # 绘制蓝色圆形
-        brush = QBrush(QColor(100, 200, 255, 200))  # 设置颜色和透明度
+        brush = QBrush(QColor(180, 180, 180, 200))  # 设置颜色和透明度
         painter.setBrush(brush)
         painter.setPen(Qt.NoPen)
-        painter.drawEllipse(0, 0, self.width(), self.height())
+        rect_x = 0                                        # 矩形左上角X坐标
+        rect_y = 0                                        # 矩形左上角Y坐标
+        #self.width()                                       矩形宽度
+        #self.height()                                      矩形高度
+        radius = 20                                       # 圆角半径（单位：像素）
+        #print(self.width(),self.height())
+        painter.drawRoundedRect(rect_x, rect_y, self.width(), self.height(), radius, radius)
 
         # 绘制文字
-        painter.setPen(QColor(255, 255, 255))
-        font = QFont("黑体", 10, QFont.Bold)
+        painter.setPen(QColor(20, 20, 20))
+        font = QFont("微软雅黑", 10, QFont.Bold)
         painter.setFont(font)
-        text = "随机点名"
+        text = "随机\n抽取"
         painter.drawText(self.rect(), Qt.AlignCenter, text)
+
+        logger.info('已绘制悬浮窗')
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -99,3 +107,7 @@ class FloatingWindow(QWidget):
         else:
             # 恢复默认透明度
             self.setWindowOpacity(self.default_opacity)
+
+    def closeEvent(self, event):
+        logger.warning("悬浮窗被非法关闭，已拦截")
+        event.ignore()

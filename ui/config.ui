@@ -70,6 +70,13 @@
          </property>
         </widget>
        </item>
+       <item row="2" column="1">
+        <widget class="QCheckBox" name="auto_start_checkbox">
+         <property name="text">
+          <string>开机自启动</string>
+         </property>
+        </widget>
+       </item>
       </layout>
      </widget>
     </item>
@@ -96,28 +103,15 @@
          </property>
         </widget>
        </item>
-       <item row="5" column="1">
-        <widget class="QLineEdit" name="a1"/>
-       </item>
-       <item row="6" column="1">
-        <widget class="QLineEdit" name="b1"/>
-       </item>
-       <item row="6" column="3">
-        <widget class="QLineEdit" name="b2"/>
-       </item>
-       <item row="1" column="4">
-        <widget class="QLabel" name="label_9">
-         <property name="text">
-          <string>px</string>
-         </property>
-        </widget>
-       </item>
-       <item row="3" column="1">
+       <item row="4" column="1">
         <widget class="QLabel" name="label_3">
          <property name="text">
           <string>多音字播报指定读音(最多三组):</string>
          </property>
         </widget>
+       </item>
+       <item row="5" column="1">
+        <widget class="QLineEdit" name="a1"/>
        </item>
        <item row="5" column="2">
         <widget class="QLabel" name="label_4">
@@ -126,12 +120,24 @@
          </property>
         </widget>
        </item>
+       <item row="5" column="3">
+        <widget class="QLineEdit" name="a2"/>
+       </item>
+       <item row="6" column="1">
+        <widget class="QLineEdit" name="b1"/>
+       </item>
        <item row="6" column="2">
         <widget class="QLabel" name="label_5">
          <property name="text">
           <string>--&gt;</string>
          </property>
         </widget>
+       </item>
+       <item row="6" column="3">
+        <widget class="QLineEdit" name="b2"/>
+       </item>
+       <item row="7" column="1">
+        <widget class="QLineEdit" name="c1"/>
        </item>
        <item row="7" column="2">
         <widget class="QLabel" name="label_6">
@@ -140,6 +146,9 @@
          </property>
         </widget>
        </item>
+        <item row="7" column="3">
+        <widget class="QLineEdit" name="c2"/>
+       </item>
        <item row="0" column="4">
         <widget class="QLabel" name="label_2">
          <property name="text">
@@ -147,24 +156,15 @@
          </property>
         </widget>
        </item>
-       <item row="7" column="3">
-        <widget class="QLineEdit" name="c2"/>
-       </item>
-       <item row="7" column="1">
-        <widget class="QLineEdit" name="c1"/>
-       </item>
-       <item row="5" column="3">
-        <widget class="QLineEdit" name="a2"/>
-       </item>
        <item row="1" column="1">
         <widget class="QLabel" name="label_8">
          <property name="text">
-          <string>悬浮窗大小(重启后生效):</string>
+          <string>悬浮窗大小x(重启后生效):</string>
          </property>
         </widget>
        </item>
        <item row="1" column="3">
-        <widget class="QLineEdit" name="floatsize_edit">
+        <widget class="QLineEdit" name="floatsize_x_edit">
          <property name="inputMask">
           <string/>
          </property>
@@ -173,14 +173,45 @@
          </property>
         </widget>
        </item>
+       <item row="1" column="4">
+        <widget class="QLabel" name="label_9">
+         <property name="text">
+          <string>px</string>
+         </property>
+        </widget>
+       </item>
        <item row="2" column="1">
+        <widget class="QLabel" name="label_11">
+         <property name="text">
+          <string>悬浮窗大小y(重启后生效):</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="3">
+        <widget class="QLineEdit" name="floatsize_y_edit">
+         <property name="inputMask">
+          <string/>
+         </property>
+         <property name="text">
+          <string>0</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="4">
+        <widget class="QLabel" name="label_12">
+         <property name="text">
+          <string>px</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="1">
         <widget class="QLabel" name="label_10">
          <property name="text">
           <string>播报语速:</string>
          </property>
         </widget>
        </item>
-       <item row="2" column="3">
+       <item row="3" column="3">
         <widget class="QLineEdit" name="speed_edit">
          <property name="text">
           <string>0</string>

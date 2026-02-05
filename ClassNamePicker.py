@@ -1,61 +1,91 @@
-import json
-import os
+# ClassNamePicker 主程序
+# ClassNamePicker.py
+
 import random
 import sys
 import time
-import pyttsx3
-import threading
+import requests
+import webbrowser
+import psutil
 
 from ui import Ui_MainWindow
-from FloatingWindow import *
-from ConfigPage import *
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import QTimer, Qt
+from FloatingWindow import FloatingWindow
+from ConfigPage import ConfigWindow
+from PickerConfigManager import ConfigManager
+from AutoStartManager import AutoStartManager
+from version import APP_VERSION, APP_VERSION_TIME, APP_VERSION_INFO, CONFIG_VERSION
 
+from PyQt5.QtWidgets import *
+from PyQt5.QtCore import QTimer, Qt, QThread, pyqtSignal, QPoint, QRect
+from PyQt5.QtGui import QCursor
+from PyQt5 import QtCore
+from loguru import logger
+
+class SpeechThread(QThread):
+    """
+    异步语音播报线程
+    用于在后台线程中调用 pyttsx3 播报姓名，避免阻塞主界面。
+    播报结束后通过 finished 信号通知主线程。
+    """
+    finished = pyqtSignal()
+    
+    def __init__(self, text, speak_speed=170):
+        super().__init__()
+        self.text = text
+        self.speak_speed = speak_speed
+
+    def run(self):
+        try:
+            import pyttsx3
+            engine = pyttsx3.init(driverName='sapi5')
+            engine.setProperty('rate', self.speak_speed)
+            logger.info(f'触发语音播报 - 内容:"{self.text}"')
+            engine.say(self.text)
+            engine.runAndWait()
+        except Exception as e:
+            logger.error(f"语音错误: {e}")
+        finally:
+            self.finished.emit()
 
 class PickName(QMainWindow, Ui_MainWindow):
     def __init__(self):
-        # 版本信息
-        self.version = 'v1.4.5'
-        self.version_time = '2025.4.19'
-        self.version_info = ''
-        self.config_version = '1.1.5'
-
-        # 初始名单
-        self.names = []
-        self.g_names = []
-        self.b_names = []
-
-        # print(len(self.g_names)+len(self.b_names))
-        # print(len(self.b_names))
-        # print(len(self.b_names_bak))
-        # print(len(self.names))
-
-        # 初始化已抽取的名字列表
-        self.can_pick_names = self.names.copy()
-
-        # 初始化变量
-        self.pick_again = False
-        self.animation = True
-        self.recite = False
-        self.is_save = False
-        self.pick_only_g = False
-        self.pick_only_b = False
-        self.speak_name = False
-        self.pick_balanced = False
-        self.is_show_floating = True
-        self.animation_time = 1.0
-        self.picked_count = 0
-        self.wait_recite_time = 3
-        self.floating_size = 130
-        self.speak_speed = 170
-
-        self.start_time = 0
-        self.elapsed_time = 0
-        self.is_running = False
-        self.selected_name = ''
-
+        # 配置窗口实例
         self.config_window = None
+        # 语音线程实例
+        self.speech_thread = None
+
+        # 版本信息（集中管理）
+        self.version = APP_VERSION
+        self.version_time = APP_VERSION_TIME
+        self.version_info = APP_VERSION_INFO
+        self.config_version = CONFIG_VERSION
+
+        # 名单相关
+        self.names = []      # 全部名单
+        self.g_names = []    # 女生名单
+        self.b_names = []    # 男生名单
+        self.can_pick_names = self.names.copy()  # 可抽取名单
+
+        # 功能状态变量
+        self.pick_again = False         # 是否允许重复抽取
+        self.animation = True           # 是否启用动画
+        self.recite = False             # 是否背书模式
+        self.is_save = False            # 是否保存抽取结果
+        self.pick_only_g = False        # 只抽女生
+        self.pick_only_b = False        # 只抽男生
+        self.speak_name = True          # 是否语音播报
+        self.pick_balanced = False      # 是否平衡抽取
+        self.is_show_floating = True    # 是否显示悬浮窗
+        self.animation_time = 0.8       # 动画时长
+        self.picked_count = 0           # 已抽取次数
+        self.wait_recite_time = 3       # 背书倒计时
+        self.floating_x_size = 130      # 悬浮窗宽度
+        self.floating_y_size = 130      # 悬浮窗高度
+        self.speak_speed = 170          # 语音播报速度
+        self.start_time = 0             # 计时起点
+        self.elapsed_time = 0           # 已用时间
+        self.is_running = False         # 是否正在运行
+        self.anti_block = False         # 防希沃管家拦截
 
         super().__init__()  # 初始化QMainWindow
         self.setupUi(self)  # 使用UI设置界面
@@ -66,21 +96,22 @@ class PickName(QMainWindow, Ui_MainWindow):
         # 禁用最小化按钮
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowMinimizeButtonHint)
         self.setWindowFlags(
-            self.windowFlags() |  # 保留原有属性
-            QtCore.Qt.WindowStaysOnTopHint  # 添加置顶属性
-        )
+            self.windowFlags() | QtCore.Qt.WindowStaysOnTopHint)
 
-        # 抽取名字按钮
-        self.pick_name_button.clicked.connect(self.pick_name)
-
-        # 重置按钮
-        self.reset_button.clicked.connect(self.reset)
-
-        # 复选框，是否背书模式
-        self.pick_time_checkbox.stateChanged.connect(self.set_recite)
+        # 绑定控件信号
+        self.pick_name_button.clicked.connect(self.pick_name)  # 抽取按钮
+        self.reset_button.setEnabled(True)
+        self.reset_button.clicked.connect(self.reset)           # 重置按钮
+        self.pick_time_checkbox.stateChanged.connect(self.set_recite)  # 背书模式
         self.timer_label.hide()
-
-        # 复选框，是否只抽男/女
+        self.b_names_pick_checkbox.stateChanged.connect(self.set_pick_group_b)  # 只抽男生
+        self.g_names_pick_checkbox.stateChanged.connect(self.set_pick_group_g)  # 只抽女生
+        self.pick_again_checkbox.stateChanged.connect(self.set_pick_again)      # 允许重复抽取
+        self.about_action.triggered.connect(self.about_menu)
+        self.github_action.triggered.connect(self.github_menu)
+        self.exit_action.triggered.connect(self.exit)
+        self.config_action.triggered.connect(self.open_config_page)
+        # ... 其他信号绑定 ...
         self.b_names_pick_checkbox.stateChanged.connect(self.set_pick_group_b)
         self.g_names_pick_checkbox.stateChanged.connect(self.set_pick_group_g)
 
@@ -93,17 +124,14 @@ class PickName(QMainWindow, Ui_MainWindow):
         self.exit_action.triggered.connect(self.exit)
         self.config_action.triggered.connect(self.open_config_page)
 
-        # 播报
-        self.engine = pyttsx3.init()
-        # 设置语速
-        self.engine.setProperty('rate', self.speak_speed)
-        self.lock = threading.Lock()  # 核心锁
+        # 语音播报相关（见 SpeechThread）
+        self.speak_speed = 170  # Default speak speed
 
         self.read_config()
         self.update_stats()
 
         # 创建悬浮窗实例
-        self.floating_window = FloatingWindow(size=self.floating_size, parent=self)
+        self.floating_window = FloatingWindow(size_x=self.floating_x_size,size_y=self.floating_y_size, parent=self)
 
         # 当前配置窗口引用
         self.config_window = None
@@ -113,141 +141,106 @@ class PickName(QMainWindow, Ui_MainWindow):
         self.save_timer.setSingleShot(True)  # 单次触发模式
         self.save_timer.timeout.connect(self.save_config)
 
+        # 检测希沃管家
+        for proc in psutil.process_iter(['name','pid']):
+            try:
+                # logger.debug(proc.info)
+                if proc.info['name'].lower() == 'wininit.exe'.lower():
+                    self.anti_block = True
+                    name = proc.info['name']
+                    pid = proc.info['pid']
+                    logger.warning(f'检测到希沃集控进程: {name}，PID: {pid}，已开启弹窗拦截保护')
+            except Exception:
+                pass
+
+        logger.info('初始化完成')
+
     def read_config(self):
-        """配置文件读取"""
+        """统一使用 ConfigManager 加载并应用配置"""
+        # 确保配置目录和基础文件存在
+        ConfigManager.initialize()
 
-        def create_config(is_upgrade=False):
-            if is_upgrade:
-                config_v['picked_count'] = self.picked_count
-                with open(file_dir, 'w+', encoding='utf-8') as config_file_c:
-                    json.dump(config_v, config_file_c)
-
-            if not os.path.exists(file_dir):
-                with open(file_dir, 'w+', encoding='utf-8') as config_file_c:
-                    json.dump(config_v, config_file_c)
-            if not os.path.exists(names_file_dir):
-                with open(names_file_dir, 'w', encoding='utf-8') as names_file_c:
-                    names_file_c.write(example_names)
-            if not os.path.exists(g_names_file_dir):
-                with open(g_names_file_dir, 'w', encoding='utf-8') as g_names_file_c:
-                    g_names_file_c.write(g_example_names)
-            if not os.path.exists(file_dir_2):
-                with open(file_dir_2, 'w', encoding='utf-8') as config_file_2_c:
-                    json.dump(config_v2, config_file_2_c)
+        # 读取名单文件
+        try:
+            names_text = ConfigManager.NAMES_FILE.read_text(encoding='utf-8')
+            self.names = [line.strip() for line in names_text.splitlines() if line.strip()]
+        except Exception:
+            self.names = []
 
         try:
-            os.makedirs('./PickNameConfig/', exist_ok=True)
-            file_dir = r'./PickNameConfig/config.json'
-            file_dir_2 = r'./PickNameConfig/name_changes.json'
-            names_file_dir = './PickNameConfig/names.txt'
-            g_names_file_dir = './PickNameConfig/g_names.txt'
-            example_names = '名字1\n名字2\n名字3\n'
-            g_example_names = '女名1\n女名2\n女名3\n'
+            g_names_text = ConfigManager.G_NAMES_FILE.read_text(encoding='utf-8')
+            self.g_names = [line.strip() for line in g_names_text.splitlines() if line.strip()]
+        except Exception:
+            self.g_names = []
 
-            config_v = {
-                'pick_again': self.pick_again,
-                'animation': self.animation,
-                'animation_time': self.animation_time,
-                'is_save': self.is_save,
-                'show_floating': self.is_show_floating,
-                'floating_size': self.floating_size,
-                'pick_balanced': self.pick_balanced,
-                'picked_count': self.picked_count,
-                'speak_name': self.speak_name,
-                'speak_speed': self.speak_speed,
-                "window_width": self.width(),
-                "window_height": self.height(),
-                'config_version': self.config_version,
-                'can_pick_names': self.names,
-            }
-            config_v2 = {
-                'speak_change_a1': '',
-                'speak_change_a2': '',
-                'speak_change_b1': '',
-                'speak_change_b2': '',
-                'speak_change_c1': '',
-                'speak_change_c2': '',
-            }
+        # 计算男生名单
+        self.b_names = [n for n in self.names if n not in set(self.g_names)]
 
+        # 加载配置（安全模式）
+        config = ConfigManager.load_safe()
+
+        # 应用配置到界面/状态
+        self.block_signals()
+        self.is_save = config.get(ConfigManager.KEY_IS_SAVE, self.is_save)
+        self.pick_again = config.get(ConfigManager.KEY_PICK_AGAIN, self.pick_again)
+        self.animation = config.get(ConfigManager.KEY_ANIMATION, self.animation)
+        self.animation_time = config.get(ConfigManager.KEY_ANIMATION_TIME, self.animation_time)
+        self.can_pick_names = config.get(ConfigManager.KEY_CAN_PICK_NAMES, self.names.copy())
+        self.picked_count = config.get(ConfigManager.KEY_PICKED_COUNT, self.picked_count)
+        self.speak_name = config.get(ConfigManager.KEY_SPEAK_NAME, self.speak_name)
+        self.speak_speed = config.get(ConfigManager.KEY_SPEAK_SPEED, self.speak_speed)
+        self.pick_balanced = config.get(ConfigManager.KEY_PICK_BALANCED, self.pick_balanced)
+        self.floating_x_size = config.get(ConfigManager.KEY_FLOATING_X_SIZE, self.floating_x_size)
+        self.floating_y_size = config.get(ConfigManager.KEY_FLOATING_Y_SIZE, self.floating_y_size)
+        window_width = config.get(ConfigManager.KEY_WINDOW_WIDTH, self.width())
+        window_height = config.get(ConfigManager.KEY_WINDOW_HEIGHT, self.height())
+        self.is_show_floating = config.get(ConfigManager.KEY_SHOW_FLOATING, self.is_show_floating)
+        self.resize(window_width, window_height)
+        self.pick_again_checkbox.setChecked(self.pick_again)
+        #self.engine.setProperty('rate', self.speak_speed)
+        self.block_signals(False)
+
+        # 读取多音字替换配置
+        try:
+            name_changes = ConfigManager.load_name_changes()
+            self.speak_change_a1 = name_changes.get('speak_change_a1', '')
+            self.speak_change_a2 = name_changes.get('speak_change_a2', '')
+            self.speak_change_b1 = name_changes.get('speak_change_b1', '')
+            self.speak_change_b2 = name_changes.get('speak_change_b2', '')
+            self.speak_change_c1 = name_changes.get('speak_change_c1', '')
+            self.speak_change_c2 = name_changes.get('speak_change_c2', '')
+        except Exception:
+            self.speak_change_a1 = self.speak_change_a2 = ''
+            self.speak_change_b1 = self.speak_change_b2 = ''
+            self.speak_change_c1 = self.speak_change_c2 = ''
+
+        # 在加载配置后添加自启动状态同步
+        self.auto_start = config.get(ConfigManager.KEY_AUTO_START, False)
+        actual_state = AutoStartManager.is_enabled()
+        if self.auto_start != actual_state:
+            # 状态不一致，以注册表为准并更新配置
+            self.auto_start = actual_state
+            config[ConfigManager.KEY_AUTO_START] = actual_state
             try:
-                with open(names_file_dir, 'r', encoding='utf-8') as names_file:
-                    self.names = [line.strip() for line in names_file if line.strip()]
-                with open(g_names_file_dir, 'r', encoding='utf-8') as g_names_file:
-                    self.g_names = [line.strip() for line in g_names_file if line.strip()]
-
-                for name in self.names:
-                    if name not in self.g_names:
-                        self.b_names.append(name)
-
-                with open(file_dir, encoding='utf-8') as config_file:
-                    config = json.load(config_file)
-                    if not config['config_version'] == self.config_version:
-                        self.picked_count = config['picked_count']
-                        create_config(True)
-                        QMessageBox.information(self, '提示', '配置文件更新成功!')
-                        return
-                    self.block_signals()
-                    self.is_save = config['is_save']
-                    self.pick_again = config['pick_again']
-                    self.animation = config['animation']
-                    self.animation_time = config['animation_time']
-                    self.can_pick_names = config['can_pick_names']
-                    self.picked_count = config['picked_count']
-                    self.speak_name = config['speak_name']
-                    self.speak_speed = config['speak_speed']
-                    self.pick_balanced = config['pick_balanced']
-                    self.floating_size = config['floating_size']
-                    window_height = config['window_height']
-                    window_width = config['window_width']
-                    self.is_show_floating = config['show_floating']
-                    self.resize(window_width, window_height)
-                    self.pick_again_checkbox.setChecked(self.pick_again)
-                    self.engine.setProperty('rate', self.speak_speed)
-                    self.block_signals(False)
-
-                with open(file_dir_2, encoding='utf-8') as config_file_2:
-                    config_2 = json.load(config_file_2)
-                    self.speak_change_a1 = config_2['speak_change_a1']
-                    self.speak_change_a2 = config_2['speak_change_a2']
-                    self.speak_change_b1 = config_2['speak_change_b1']
-                    self.speak_change_b2 = config_2['speak_change_b2']
-                    self.speak_change_c1 = config_2['speak_change_c1']
-                    self.speak_change_c2 = config_2['speak_change_c2']
-
-            except FileNotFoundError:
-                create_config()
-                # QMessageBox.information(self, '提示', '配置文件创建成功!请在names.txt文件中编辑名单!')
-                # print(e)
-                # sys.exit('CREATED_CONFIG_SUCCESSFULLY')
-
-        except Exception as e:
-            QMessageBox.critical(self, '错误',
-                                 '配置文件读写错误!\n请尝试删除配置文件夹中的config.json\n错误信息:' + str(
-                                     e))
-            print("错误信息:", e)
-            sys.exit('FAILED_TO_LOAD_CONFIG')
+                ConfigManager.save(config)
+            except Exception:
+                pass
 
     def save_config(self):
         """配置文件写入"""
         try:
-            file_dir = r'./PickNameConfig/config.json'
-            with open(file_dir, 'r', encoding='utf-8') as config_file:
-                config = json.load(config_file)
-                config['pick_again'] = self.pick_again
-                config['pick_balanced'] = self.pick_balanced
-                if self.is_save:
-                    config['can_pick_names'] = self.can_pick_names
-                else:
-                    config['can_pick_names'] = self.names
-                config['picked_count'] = self.picked_count
-                config['window_width'] = self.width()
-                config['window_height'] = self.height()
-            with open(file_dir, 'w', encoding='utf-8') as config_file:
-                json.dump(config, config_file, ensure_ascii=False)
-            print('配置文件已保存')
+            config = ConfigManager.load_safe()
+            config[ConfigManager.KEY_PICK_AGAIN] = self.pick_again
+            config[ConfigManager.KEY_PICK_BALANCED] = self.pick_balanced
+            config[ConfigManager.KEY_CAN_PICK_NAMES] = self.can_pick_names if self.is_save else self.names
+            config[ConfigManager.KEY_PICKED_COUNT] = self.picked_count
+            config[ConfigManager.KEY_WINDOW_WIDTH] = self.width()
+            config[ConfigManager.KEY_WINDOW_HEIGHT] = self.height()
+            config[ConfigManager.KEY_SPEAK_SPEED] = self.speak_speed
+            ConfigManager.save(config)
         except Exception as e:
             QMessageBox.critical(self, '错误', '配置文件写入错误！')
-            print("配置文件写入错误:", e)
+            logger.error(f"配置文件写入错误: {e}")
 
     def set_pick_again(self):
         if not self.pick_again:
@@ -261,13 +254,7 @@ class PickName(QMainWindow, Ui_MainWindow):
         elif self.pick_again:
             self.pick_again = False
         self.update_stats()
-
-    def set_animation(self):
-        if not self.animation:
-            self.animation = True
-        elif self.animation:
-            self.animation = False
-
+    
     def set_recite(self):
         if not self.recite:
             self.recite = True
@@ -284,12 +271,6 @@ class PickName(QMainWindow, Ui_MainWindow):
         else:
             self.is_save = False
 
-    def set_speak(self):
-        if not self.speak_name:
-            self.speak_name = True
-        else:
-            self.speak_name = False
-
     def set_pick_group_g(self):
         self.block_signals(True)
         if not self.pick_only_g:
@@ -298,7 +279,6 @@ class PickName(QMainWindow, Ui_MainWindow):
                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes:
                 self.pick_again = False
                 self.pick_again_checkbox.setCheckState(False)
-                # self.pick_again_checkbox.setDisabled(True)
                 self.pick_only_g = True
                 self.set_pick_group('g')
                 self.can_pick_names = self.g_names.copy()
@@ -317,7 +297,6 @@ class PickName(QMainWindow, Ui_MainWindow):
                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes:
                 self.pick_again = False
                 self.pick_again_checkbox.setCheckState(False)
-                # self.pick_again_checkbox.setDisabled(True)
                 self.pick_only_b = True
                 self.set_pick_group('b')
                 self.can_pick_names = self.b_names.copy()
@@ -350,48 +329,94 @@ class PickName(QMainWindow, Ui_MainWindow):
         self.is_running = False
 
         self.pick_name_button.setDisabled(True)
-        self.reset_button.setDisabled(True)
 
         if not self.can_pick_names:
-            QMessageBox.information(self, "提示", "所有名字已抽取完毕，请重置")
-            self.name_label.setText("请重置")
-            self.name_label.setStyleSheet("color: red")
-            self.reset_button.setDisabled(False)
+            self._show_completion_message()
             return
-
-        self.selected_name = random.choice(self.can_pick_names)
 
         if self.animation:
             self.start_time = time.time()
             self.pick_animation()
         else:
-            self.name_label.setText(self.selected_name)
-            self.pick_name_button.setDisabled(False)
-            self.reset_button.setDisabled(False)
-            if self.speak_name:
-                self.say(self.selected_name)
-            if self.recite:
-                self.is_running = False
-                self.perform_countdown(self.wait_recite_time)
-
-        if not self.pick_again:
-            self.can_pick_names.remove(self.selected_name)
+            self._display_result()
 
         # 更新统计信息
-        self.picked_count += 1
         self.update_stats()
         # self.save_config()
+    
+    def _show_completion_message(self):
+        """显示完成提示"""
+        self.name_label.setText("请重置")
+        self.name_label.setStyleSheet("color: red")
+        QMessageBox.information(self, "提示", "所有名字已抽取完毕，请重置")
+        self.reset_button.setEnabled(True)
+        self.pick_name_button.setEnabled(False)
+    
+    def _display_result(self):
+        """显示最终结果"""
+        random_name_memory = random_name = random.choice(self.can_pick_names)
+        logger.info(f'random函数调用结果:{random_name_memory} | 抽选列表长度:{len(self.can_pick_names)} | 列表内容:{self.can_pick_names}')
+        # if ( len(self.can_pick_names) > 1 ) and ( not random.randint(0,random_name.count(' ') + 1) < 1 ) :
+        #     while random_name == random_name_memory:
+        #         logger.warning('侦测到与上次抽选结果相同，重新抽取!')
+        #         random_name = random.choice(self.can_pick_names)
+        #         logger.info(f'random函数调用结果:{random_name_memory}')
+        #         logger.info(f'抽选列表长度:{len(self.can_pick_names)}')
+        #         logger.info(f'列表内容:{self.can_pick_names}')
+        #         logger.info('='*10)
+        #         #print('2333')
+        # #else:
+        # #    print(random_name)
+        
+        self.name_label.setText(random_name)
+        
+        # 异步语音播报
+        if self.speak_name:
+            self._speak_name_async(random_name)
+        
+        # 更新状态
+        if ( random_name in self.can_pick_names ) and ( not self.pick_again ):
+            self.can_pick_names.remove(random_name)
+            self.reset_button.setEnabled(True)
+        
+        self.picked_count += 1
+        self.update_stats()
+        self.pick_name_button.setEnabled(True)
+        
+        if self.recite:
+            self.perform_countdown(self.wait_recite_time)
+    
+    def _speak_name_async(self, text):
+        """异步播报，确保同一时刻只有一个语音线程，避免 run loop already started 错误"""
+        # 多音字替换
+        name_changes = ConfigManager.load_name_changes()
+        for i in range(1, 4):
+            orig = name_changes.get(f'speak_change_{chr(96+i)}1', '')
+            repl = name_changes.get(f'speak_change_{chr(96+i)}2', '')
+            if text == orig and repl:
+                text = repl
+                break
+
+        # 如果有语音线程在运行，直接返回，避免并发
+        if self.speech_thread and self.speech_thread.isRunning():
+            # 可选：弹窗提示或直接 return，防止 run loop already started
+            logger.warning("语音线程正在播报，等待播报结束")
+            return
+
+        self.speech_thread = SpeechThread(text, speak_speed=self.speak_speed)
+        self.speech_thread.finished.connect(self._on_speech_finished)
+        self.pick_name_button.setEnabled(False)  # 语音播报时禁用按钮
+        self.speech_thread.start()
+
+    def _on_speech_finished(self):
+        self.pick_name_button.setEnabled(True)
 
     def perform_countdown(self, seconds):
-        self.pick_name_button.setDisabled(True)
-        self.reset_button.setDisabled(True)
         self.timer_label.setStyleSheet("color=red")
         self.timer_label.setText(f"{seconds:.1f}s")
         if seconds > 0:
             QTimer.singleShot(100, lambda: self.perform_countdown(seconds - 0.1))
         else:
-            self.pick_name_button.setDisabled(False)
-            self.reset_button.setDisabled(False)
             self.timer_label.setStyleSheet("color: black")
             self.is_running = True
             self.start_time = time.time()
@@ -427,28 +452,20 @@ class PickName(QMainWindow, Ui_MainWindow):
             if reply == QMessageBox.Yes:
                 perform_reset()
                 QMessageBox.information(self, "提示", "已清空已抽取名单!")
+                self.reset_button.setEnabled(False)
         self.block_signals(False)
 
     def pick_animation(self):
         if len(self.can_pick_names) <= 2:
-            self.name_label.setText(self.selected_name)
-            self.pick_name_button.setEnabled(True)
-            self.reset_button.setEnabled(True)
+            self._display_result()
             return
-
-        rdm_name = random.choice(self.can_pick_names)
-        self.name_label.setText(rdm_name)
+        
         if time.time() - self.start_time < self.animation_time:  # 动画时间内不断变化
+            rdm_name = random.choice(self.can_pick_names)
+            self.name_label.setText(rdm_name)
             QTimer.singleShot(10, self.pick_animation)  # 每 10 毫秒重新调用
         else:
-            self.name_label.setText(self.selected_name)
-            self.pick_name_button.setEnabled(True)
-            self.reset_button.setEnabled(True)
-            if self.speak_name:
-                self.say(self.selected_name)
-            if self.recite:
-                self.is_running = False
-                self.perform_countdown(self.wait_recite_time)
+            self._display_result()
             return
 
     def update_stats(self):
@@ -490,7 +507,7 @@ class PickName(QMainWindow, Ui_MainWindow):
                 latest_version = latest_version + '(发现新版本)'
             latest_version_info = response.json()['body']
         except Exception as e:
-            print('检查更新失败:', e)
+            logger.error(f'检查更新失败: {e}')
             latest_version = '检测失败'
             latest_version_info = '获取更新失败'
 
@@ -509,6 +526,42 @@ class PickName(QMainWindow, Ui_MainWindow):
         webbrowser.open("https://github.com/Chengzi600/ClassNamePicker/releases")
 
     def closeEvent(self, event):
+        """重写关闭事件，释放资源并调用父类方法"""
+        logger.info('触发关闭事件')
+        if self.anti_block:
+            # 获取鼠标在屏幕上的位置
+            mouse_global_pos = QCursor.pos()
+            logger.debug(f'鼠标位置:{mouse_global_pos}')
+
+            # 获取窗口的框架几何（包括标题栏和边框）
+            frame_rect = self.frameGeometry()
+
+            close_button_width = 600
+            close_button_height = 600
+            close_button_rect = QRect(
+                frame_rect.right() - close_button_width,
+                frame_rect.top(),
+                close_button_width,
+                close_button_height
+            )
+            logger.debug(f'关闭按钮位置:{close_button_rect}')
+
+            # 判断鼠标是否在关闭按钮区域内
+            if close_button_rect.contains(mouse_global_pos):
+                logger.info("检测为用户点击关闭按钮，执行正常关闭流程")
+            else:
+                logger.warning("检测到非法关闭，已拦截")
+                event.ignore()
+                return
+
+        # 停止语音线程
+        if hasattr(self, 'speech_thread') and self.speech_thread and self.speech_thread.isRunning():
+            self.speech_thread.quit()
+            self.speech_thread.wait()
+        # 停止定时器
+        if hasattr(self, 'save_timer') and self.save_timer:
+            self.save_timer.stop()
+
         if not self.is_show_floating:
             self.exit()
         if self.pick_only_g or self.pick_only_b or self.pick_again:
@@ -519,6 +572,8 @@ class PickName(QMainWindow, Ui_MainWindow):
             self.save_config()
             self.hide()
             self.floating_window.show()
+        # 调用父类关闭事件，确保彻底关闭
+        #super().closeEvent(event)
         event.ignore()
 
     def resizeEvent(self, event):
@@ -560,30 +615,6 @@ class PickName(QMainWindow, Ui_MainWindow):
             self.b_names_pick_checkbox.stateChanged.connect(self.set_pick_group_b)
             self.g_names_pick_checkbox.stateChanged.connect(self.set_pick_group_g)
             self.pick_again_checkbox.stateChanged.connect(self.set_pick_again)
-
-    def say(self, text):
-        # 线程锁 by deepseek-r1
-        if text == self.speak_change_a1:
-            text = self.speak_change_a2
-        elif text == self.speak_change_b1:
-            text = self.speak_change_b2
-        elif text == self.speak_change_c1:
-            text = self.speak_change_c2
-
-        def _speak():
-            try:
-                self.engine.say(text)
-                self.engine.runAndWait()
-            except Exception as e:
-                print(f"语音错误: {e}")
-            finally:
-                self.lock.release()
-
-        if self.lock.acquire(blocking=False):  # 非阻塞获取锁
-            threading.Thread(target=_speak, daemon=True).start()
-        else:
-            print("当前有语音正在播放，忽略新请求")
-
 
 if __name__ == "__main__":
     # QGuiApplication.setAttribute(Qt.AA_EnableHighDpiScaling)

@@ -2,7 +2,6 @@ import sys
 from guide_ui import Ui_MainWindow
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import Qt, QTimer
-import requests
 
 class Guide(QMainWindow, Ui_MainWindow):
     def __init__(self):
@@ -10,7 +9,6 @@ class Guide(QMainWindow, Ui_MainWindow):
         self.setupUi(self)  # 使用UI设置界面
 
         self.version = 'v1.4.4'
-
         self.setWindowTitle("设置向导- ClassNamePicker - v{}".format(self.version))
 
         # 初始化页面索引
@@ -20,8 +18,6 @@ class Guide(QMainWindow, Ui_MainWindow):
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowMaximizeButtonHint)
         # 禁用最小化按钮
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowMinimizeButtonHint)
-        super().__init__()
-        self.setupUi(self)  # 初始化 UI
 
         # 连接按钮信号和槽函数
         self.next_button.clicked.connect(self.next_page)
