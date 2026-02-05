@@ -1,3 +1,4 @@
 requests>=2.28.1
 PyQt5>=5.15.9
 pyttsx3>=2.98
+loguru

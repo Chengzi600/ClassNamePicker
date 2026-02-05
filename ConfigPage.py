@@ -8,6 +8,8 @@ from config_ui import Ui_ConfigMainWindow
 from PickerConfigManager import ConfigManager
 from AutoStartManager import AutoStartManager
 from PyQt5 import QtGui, QtCore
+from version import APP_VERSION, APP_VERSION_TIME, APP_VERSION_INFO, CONFIG_VERSION
+from loguru import logger
 
 class ConfigWindow(QtWidgets.QMainWindow, Ui_ConfigMainWindow):
     closed = QtCore.pyqtSignal(bool)
@@ -17,12 +19,15 @@ class ConfigWindow(QtWidgets.QMainWindow, Ui_ConfigMainWindow):
         self.setupUi(self)
 
         self.setWindowTitle('配置面板')
-        self.version = 'v1.4.5'
+        self.version = APP_VERSION
+        self.legal_close = False
 
-        # 禁用最大化按钮
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowMaximizeButtonHint)
-        # 禁用最小化按钮
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowMinimizeButtonHint)
+        window_flags = self.windowFlags()
+        window_flags &= ~Qt.WindowMaximizeButtonHint
+        window_flags &= ~Qt.WindowMinimizeButtonHint
+        window_flags &= ~Qt.WindowCloseButtonHint
+        # 应用新的窗口标志
+        self.setWindowFlags(window_flags)
         self.setWindowFlags(
             self.windowFlags() |  # 保留原有属性
             QtCore.Qt.WindowStaysOnTopHint  # 添加置顶属性
@@ -190,7 +195,8 @@ class ConfigWindow(QtWidgets.QMainWindow, Ui_ConfigMainWindow):
                 QMessageBox.warning(self, "多音字保存失败", f"多音字配置保存失败: {e}")
 
             QMessageBox.information(self, "成功", "配置已保存并生效！")
-            self.closed.emit(True)
+            self.legal_close = True
+            # self.closed.emit(True)
             self.close()
 
         except Exception as e:
@@ -277,13 +283,18 @@ class ConfigWindow(QtWidgets.QMainWindow, Ui_ConfigMainWindow):
             webbrowser.open("https://github.com/Chengzi600/ClassNamePicker/releases")
 
     def cancel(self):
+        self.legal_close = True
         self.close()
 
     def closeEvent(self, event):
         """重写关闭事件"""
-        # 发射关闭信号（True表示需要刷新，False不需要）
-        self.closed.emit(True)
-        super().closeEvent(event)
+        if self.legal_close:
+            # 发射关闭信号（True表示需要刷新，False不需要）
+            logger.info('用户关闭配置窗口')
+            self.closed.emit(True)
+        else:
+            logger.warning("配置窗口被非法关闭，已拦截")
+            event.ignore()
 
 
 if __name__ == "__main__":

@@ -138,4 +138,4 @@ class ConfigManager:
     def save_name_changes(cls, data):
         """保存多音字配置"""
         json.dump(data, cls.NAME_CHANGES_FILE.open('w', encoding='utf-8'), ensure_ascii=False, indent=2)
-        logger.debug('保存多音字配置')
+        logger.info(f'保存多音字配置:{data}')
